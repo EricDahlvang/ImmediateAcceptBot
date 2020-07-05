@@ -16,7 +16,8 @@ if (string.IsNullOrEmpty(activity?.Type))
 }
 else if (activity.Type == ActivityTypes.Invoke || activity.DeliveryMode == DeliveryModes.ExpectReplies)
 {
-	// NOTE: Invoke and ExpectReplies cannot be performed async
+	// NOTE: Invoke and ExpectReplies cannot be processed on a background thread.
+	// the response must be written before the calling thread is released.
 	await base.ProcessAsync(httpRequest, httpResponse, bot, cancellationToken);
 }
 else
