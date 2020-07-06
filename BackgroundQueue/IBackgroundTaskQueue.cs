@@ -2,6 +2,7 @@
 // Licensed under the MIT License.
 //
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -9,8 +10,8 @@ namespace ImmediateAcceptBot.BackgroundQueue
 {
     public interface IBackgroundTaskQueue
     {
-        void QueueBackgroundWorkItem(Func<CancellationToken, Task> workItem);
+        void QueueBackgroundWorkItem(string key, Func<CancellationToken, Task> workItem);
 
-        Task<Func<CancellationToken, Task>> DequeueAsync(CancellationToken cancellationToken);
+        Task<IEnumerable<Func<CancellationToken, Task>>> DequeueAsync(CancellationToken cancellationToken);
     }
 }

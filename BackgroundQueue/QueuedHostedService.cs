@@ -4,6 +4,7 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -23,11 +24,8 @@ namespace ImmediateAcceptBot.BackgroundQueue
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            _logger.LogInformation(
-                $"Queued Hosted Service is running.{Environment.NewLine}" +
-                $"{Environment.NewLine}Tap W to add a work item to the " +
-                $"background queue.{Environment.NewLine}");
-
+            _logger.LogInformation($"Queued Hosted Service is running.{Environment.NewLine}");
+            
             await BackgroundProcessing(stoppingToken);
         }
 
@@ -35,15 +33,18 @@ namespace ImmediateAcceptBot.BackgroundQueue
         {
             while (!stoppingToken.IsCancellationRequested)
             {
-                var workItem = await TaskQueue.DequeueAsync(stoppingToken);
+                var workItems = await TaskQueue.DequeueAsync(stoppingToken);
 
-                try
+                if (workItems.Any())
                 {
-                    await workItem(stoppingToken);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error occurred executing {WorkItem}.", nameof(workItem));
+                    try
+                    {
+                        await Task.WhenAll(workItems.Select(workItem => workItem(stoppingToken)));
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error occurred executing WorkItems.", nameof(workItems));
+                    }
                 }
             }
         }
