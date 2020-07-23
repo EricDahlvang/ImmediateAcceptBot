@@ -65,7 +65,7 @@ namespace ImmediateAcceptBot.BackgroundQueue
                                     _runningTasks.TryRemove(complete.Key, out Task removed);
                                 }
                             }
-                        });
+                        }, stoppingToken);
 
                         try
                         {
@@ -104,7 +104,7 @@ namespace ImmediateAcceptBot.BackgroundQueue
                 _shuttingDown = true;
                 // Wait for currently running tasks, but only 5 seconds
                 // since that is the default Stopping timeout.
-                Task.WaitAll(_runningTasks.Values.ToArray(), 5000);
+                await Task.WhenAny(Task.WhenAll(_runningTasks.Values.ToArray()), Task.Delay(5000));
             }
 
             await base.StopAsync(stoppingToken);
