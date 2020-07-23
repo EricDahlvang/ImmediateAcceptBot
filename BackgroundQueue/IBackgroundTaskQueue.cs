@@ -12,6 +12,6 @@ namespace ImmediateAcceptBot.BackgroundQueue
     {
         void QueueBackgroundWorkItem(string key, Func<CancellationToken, Task> workItem);
 
-        Task<IEnumerable<Func<CancellationToken, Task>>> DequeueAsync(CancellationToken cancellationToken);
+        Task<Func<CancellationToken, Task>> DequeueAsync(CancellationToken cancellationToken);
     }
 }

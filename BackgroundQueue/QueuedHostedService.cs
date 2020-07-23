@@ -4,6 +4,7 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -13,6 +14,10 @@ namespace ImmediateAcceptBot.BackgroundQueue
     public class QueuedHostedService : BackgroundService
     {
         private readonly ILogger<QueuedHostedService> _logger;
+        private readonly ReaderWriterLockSlim _lock = new ReaderWriterLockSlim();
+        private ConcurrentDictionary<string, Task> _runningTasks = new ConcurrentDictionary<string, Task>();
+        
+        private bool _shuttingDown = false;
 
         public QueuedHostedService(IBackgroundTaskQueue taskQueue, ILogger<QueuedHostedService> logger)
         {
@@ -33,17 +38,57 @@ namespace ImmediateAcceptBot.BackgroundQueue
         {
             while (!stoppingToken.IsCancellationRequested)
             {
-                var workItems = await TaskQueue.DequeueAsync(stoppingToken);
+                var workItem = await TaskQueue.DequeueAsync(stoppingToken);
 
-                if (workItems.Any())
+                if (workItem != null)
                 {
                     try
                     {
-                        await Task.WhenAll(workItems.Select(workItem => workItem(stoppingToken)));
+                        // Create the task which will execute the work item
+                        var task = new Task(async () =>
+                        {
+                            try
+                            {
+                                await workItem(stoppingToken);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogError(ex, "Error occurred executing WorkItem.", nameof(BackgroundProcessing));
+                            }
+                            finally
+                            {
+                                // After the work item completes, clear the running tasks
+                                // of all completed tasks.
+                                var completed = _runningTasks.Where(t => t.Value.IsCompleted);
+                                foreach (var complete in completed)
+                                {
+                                    _runningTasks.TryRemove(complete.Key, out Task removed);
+                                }
+                            }
+                        });
+
+                        try
+                        {
+                            // Do not start the task if the app is shutting down
+                            if (_lock.TryEnterReadLock(5) && !_shuttingDown)
+                            {
+                                _runningTasks.TryAdd(Guid.NewGuid().ToString(), task);
+                                task.Start();
+                            }
+                            else
+                            {
+                                throw new InvalidOperationException("Server is shutting down.");
+                            }
+                        }
+                        finally
+                        {
+                            _lock.ExitReadLock();
+                        }
                     }
                     catch (Exception ex)
+                    when (ex.Message != "Server is shutting down")
                     {
-                        _logger.LogError(ex, "Error occurred executing WorkItems.", nameof(workItems));
+                        _logger.LogError(ex, "Error occurred executing WorkItems.", nameof(BackgroundProcessing));
                     }
                 }
             }
@@ -52,6 +97,15 @@ namespace ImmediateAcceptBot.BackgroundQueue
         public override async Task StopAsync(CancellationToken stoppingToken)
         {
             _logger.LogInformation("Queued Hosted Service is stopping.");
+
+            // Acquire the lock, preventing new tasks from starting
+            if (_lock.TryEnterWriteLock(5000))
+            {
+                _shuttingDown = true;
+                // Wait for currently running tasks, but only 5 seconds
+                // since that is the default Stopping timeout.
+                Task.WaitAll(_runningTasks.Values.ToArray(), 5000);
+            }
 
             await base.StopAsync(stoppingToken);
         }
