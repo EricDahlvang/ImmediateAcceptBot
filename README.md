@@ -31,7 +31,7 @@ else
 		var claimsIdentity = await JwtTokenValidation.AuthenticateRequest(activity, authHeader, CredentialProvider, ChannelProvider, HttpClient).ConfigureAwait(false);
 
 		// Queue the activity to be processed on a background thread
-		_backgroundTaskQueue.QueueBackgroundWorkItem(async cancelToken => await ProcessActivityAsync(claimsIdentity, activity, bot.OnTurnAsync, cancelToken).ConfigureAwait(false));
+		_backgroundTaskQueue.QueueBackgroundWorkItem(activity.Conversation.Id, async cancelToken => await ProcessActivityAsync(claimsIdentity, activity, bot.OnTurnAsync, cancelToken).ConfigureAwait(false));
 		
 		// Activity has been queued to process, so return Ok immediately
 		httpResponse.StatusCode = (int)HttpStatusCode.OK;
