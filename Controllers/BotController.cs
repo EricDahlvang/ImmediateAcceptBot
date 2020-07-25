@@ -1,4 +1,4 @@
-// Copyright (c) Microsoft Corporation. All rights reserved.
+﻿// Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
 //
 // Generated with Bot Builder V4 SDK Template for Visual Studio EchoBot v4.9.2
@@ -6,6 +6,7 @@
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Bot.Builder;
+using Microsoft.Bot.Builder.Integration.AspNet.Core;
 
 namespace ImmediateAcceptBot.Controllers
 {
@@ -16,21 +17,26 @@ namespace ImmediateAcceptBot.Controllers
     [ApiController]
     public class BotController : ControllerBase
     {
-        private readonly ImmediateAcceptAdapter Adapter;
-        private readonly IBot Bot;
+        private readonly ImmediateAcceptAdapter _adapter;
+        private readonly IBot _bot;
         
         public BotController(ImmediateAcceptAdapter adapter, IBot bot)
         {
-            Adapter = adapter;
-            Bot = bot;
+            _adapter = adapter;
+            _bot = bot;
         }
 
-        [HttpPost, HttpGet]
+        [HttpPost]
+        [HttpGet]
         public async Task PostAsync()
         {
             // Delegate the processing of the HTTP POST to the adapter.
-            // The adapter will invoke the bot and write output to Response.
-            await Adapter.ProcessOnBackgroundThreadAsync(Request, Response, Bot);
+
+            // The ImmediateAcceptAdapter will authenticate the incoming request, and queue to be 
+            // processed by the configured background service.
+            await _adapter.ProcessOnBackgroundThreadAsync(Request, Response, _bot);
+
+            // await _adapter.ProcessAsync(Request, Response, _bot);
         }
     }
 }

@@ -3,6 +3,10 @@
 //
 // Generated with Bot Builder V4 SDK Template for Visual Studio CoreBot v4.9.2
 
+using System;
+using System.Net;
+using System.Threading;
+using System.Threading.Tasks;
 using ImmediateAcceptBot.BackgroundQueue;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Bot.Builder;
@@ -12,21 +16,19 @@ using Microsoft.Bot.Connector.Authentication;
 using Microsoft.Bot.Schema;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using System;
-using System.Net;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace ImmediateAcceptBot
 {
     public class ImmediateAcceptAdapter : BotFrameworkHttpAdapter
     {
-        IBackgroundTaskQueue _backgroundTaskQueue;
+        private readonly IBackgroundTaskQueue _backgroundTaskQueue;
+        private readonly IActivityTaskQueue _activityTaskQueue;
 
-        public ImmediateAcceptAdapter(IConfiguration configuration, ILogger<BotFrameworkHttpAdapter> logger, IBackgroundTaskQueue backgroundTaskQueue)
+        public ImmediateAcceptAdapter(IConfiguration configuration, ILogger<BotFrameworkHttpAdapter> logger, IActivityTaskQueue activityTaskQueue, IBackgroundTaskQueue backgroundTaskQueue)
             : base(configuration, logger)
         {
             _backgroundTaskQueue = backgroundTaskQueue;
+            _activityTaskQueue = activityTaskQueue;
 
             OnTurnError = async (turnContext, exception) =>
             {
@@ -42,6 +44,18 @@ namespace ImmediateAcceptBot
             };
         }
 
+        /// <summary>
+        /// This method can be called from inside a POST method on any Controller implementation.
+        /// 
+        /// Note, this is an ImmediateAccept and BackgroundProcessing replacement for: 
+        /// Task ProcessAsync(HttpRequest httpRequest, HttpResponse httpResponse, IBot bot, CancellationToken cancellationToken = default);
+        /// </summary>
+        /// <param name="httpRequest">The HTTP request object, typically in a POST handler by a Controller.</param>
+        /// <param name="httpResponse">The HTTP response object.</param>
+        /// <param name="bot">The bot implementation.</param>
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive
+        ///     notice of cancellation.</param>
+        /// <returns>A task that represents the work queued to execute.</returns>
         public async Task ProcessOnBackgroundThreadAsync(HttpRequest httpRequest, HttpResponse httpResponse, IBot bot, CancellationToken cancellationToken = default)
         {
             if (httpRequest == null)
@@ -62,7 +76,7 @@ namespace ImmediateAcceptBot
             // Get is a socket exchange request, so should be processed by base BotFrameworkHttpAdapter
             if (httpRequest.Method == HttpMethods.Get)
             {
-                await base.ProcessAsync(httpRequest, httpResponse, bot, cancellationToken);
+                await ProcessAsync(httpRequest, httpResponse, bot, cancellationToken);
             }
             else
             {
@@ -76,7 +90,7 @@ namespace ImmediateAcceptBot
                 else if (activity.Type == ActivityTypes.Invoke || activity.DeliveryMode == DeliveryModes.ExpectReplies)
                 {
                     // NOTE: Invoke and ExpectReplies cannot be performed async
-                    await base.ProcessAsync(httpRequest, httpResponse, bot, cancellationToken);
+                    await ProcessAsync(httpRequest, httpResponse, bot, cancellationToken);
                 }
                 else
                 {
@@ -88,8 +102,11 @@ namespace ImmediateAcceptBot
                         // If authentication passes, queue a work item to process the inbound activity with the bot
                         var claimsIdentity = await JwtTokenValidation.AuthenticateRequest(activity, authHeader, CredentialProvider, ChannelProvider, HttpClient).ConfigureAwait(false);
 
-                        // Queue the activity to be processed on a background thread
-                        _backgroundTaskQueue.QueueBackgroundWorkItem(activity.Conversation.Id, async cancelToken => await ProcessActivityAsync(claimsIdentity, activity, bot.OnTurnAsync, cancelToken).ConfigureAwait(false));
+                        // Queue the activity to be processed by the ActivityBackgroundService
+                        _activityTaskQueue.QueueBackgroundActivity(claimsIdentity, activity);
+                        
+                        // An alternative generic background worker
+                        // _backgroundTaskQueue.QueueBackgroundWorkItem(activity.Conversation.Id, async cancelToken => await ProcessActivityAsync(claimsIdentity, activity, bot.OnTurnAsync, cancelToken).ConfigureAwait(false));
                         
                         // Activity has been queued to process, so return Ok immediately
                         httpResponse.StatusCode = (int)HttpStatusCode.OK;

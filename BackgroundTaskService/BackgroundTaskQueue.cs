@@ -8,12 +8,15 @@ using System.Threading.Tasks;
 
 namespace ImmediateAcceptBot.BackgroundQueue
 {
+    /// <summary>
+    /// Singleton queue, used to transfer a workitem to the <see cref="HostedTaskService"/>.
+    /// </summary>
     public class BackgroundTaskQueue : IBackgroundTaskQueue
     {
         private ConcurrentQueue<Func<CancellationToken, Task>> _workItems = new ConcurrentQueue<Func<CancellationToken, Task>>();
         private SemaphoreSlim _signal = new SemaphoreSlim(0);
-
-        public void QueueBackgroundWorkItem(string key, Func<CancellationToken, Task> workItem)
+        
+        public void QueueBackgroundWorkItem(Func<CancellationToken, Task> workItem)
         {
             if (workItem == null)
             {
@@ -29,7 +32,6 @@ namespace ImmediateAcceptBot.BackgroundQueue
             await _signal.WaitAsync(cancellationToken);
 
             Func<CancellationToken, Task> dequeued;
-
             _workItems.TryDequeue(out dequeued);
             return dequeued;
         }
