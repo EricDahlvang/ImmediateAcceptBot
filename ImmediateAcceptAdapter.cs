@@ -93,7 +93,7 @@ namespace ImmediateAcceptBot
                 }
                 else if (activity.Type == ActivityTypes.Invoke || activity.DeliveryMode == DeliveryModes.ExpectReplies)
                 {
-                    // NOTE: Invoke and ExpectReplies cannot be performed async
+                    // NOTE: Invoke and ExpectReplies cannot be performed async, the response must be written before the calling thread is released.
                     await ProcessAsync(httpRequest, httpResponse, bot, cancellationToken);
                 }
                 else
