@@ -10,6 +10,7 @@ using Microsoft.Bot.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace ImmediateAcceptBot.BackgroundQueue
 {
@@ -25,27 +26,62 @@ namespace ImmediateAcceptBot.BackgroundQueue
         private readonly ConcurrentDictionary<ActivityWithClaims, Task> _activitiesProcessing = new ConcurrentDictionary<ActivityWithClaims, Task>();
         private IActivityTaskQueue _activityQueue;
         private readonly ImmediateAcceptAdapter _adapter;
-        private readonly Func<IBot> _botCreator;
+        private readonly IBot _bot;
         private readonly int _shutdownTimeoutSeconds;
 
-        public HostedActivityService(IConfiguration config, Func<IBot> botCreator, ImmediateAcceptAdapter adapter, IActivityTaskQueue activityTaskQueue, ILogger<HostedTaskService> logger)
+        /// <summary>
+        /// Create a <see cref="HostedActivityService"/> instance for processing Bot Framework Activities\
+        /// on background threads.
+        /// </summary>
+        /// <param name="config"><see cref="IConfiguration"/> used to retrieve ShutdownTimeoutSeconds from appsettings.</param>
+        /// <param name="bot">IBot which will be used to process Activities.</param>
+        /// <param name="adapter"><see cref="ImmediateAcceptAdapter"/> used to process Activities. </param>
+        /// <param name="activityTaskQueue"><see cref="IActivityTaskQueue"/>Queue of activities to be processed.  This class
+        /// contains a semaphore which the BackgroundService waits on to be notified of activities to be processed.</param>
+        /// <param name="logger">Logger to use for logging BackgroundService processing and exception information.</param>
+        public HostedActivityService(IConfiguration config, IBot bot, ImmediateAcceptAdapter adapter, IActivityTaskQueue activityTaskQueue, ILogger<HostedTaskService> logger)
         {
+            if (config == null)
+            {
+                throw new ArgumentNullException(nameof(config));
+            }
+            
+            if (bot == null)
+            {
+                throw new ArgumentNullException(nameof(bot));
+            }
+
+            if (adapter == null)
+            {
+                throw new ArgumentNullException(nameof(adapter));
+            }
+
+            if (activityTaskQueue == null)
+            {
+                throw new ArgumentNullException(nameof(activityTaskQueue));
+            }
+
             _shutdownTimeoutSeconds = config.GetValue<int>("ShutdownTimeoutSeconds");
             _activityQueue = activityTaskQueue;
-            _botCreator = botCreator;
+            _bot = bot;
             _adapter = adapter;
-            _logger = logger;
+            _logger = logger ?? NullLogger<HostedTaskService>.Instance;
         }
 
+        /// <summary>
+        /// Called by BackgroundService when the hosting service is shutting down.
+        /// </summary>
+        /// <param name="stoppingToken"><see cref="CancellationToken"/> sent from BackgroundService for shutdown.</param>
+        /// <returns>The Task to be executed asynchronously.</returns>
         public override async Task StopAsync(CancellationToken stoppingToken)
         {
             _logger.LogInformation("Queued Hosted Service is stopping.");
 
             // Obtain a write lock and do not release it, preventing new tasks from starting
-            if (_lock.TryEnterWriteLock(TimeSpan.FromSeconds(60)))
+            if (_lock.TryEnterWriteLock(TimeSpan.FromSeconds(_shutdownTimeoutSeconds)))
             {
                 // Wait for currently running tasks, but only n seconds.
-                await Task.WhenAny(Task.WhenAll(_activitiesProcessing.Values), Task.Delay(TimeSpan.FromSeconds(60)));
+                await Task.WhenAny(Task.WhenAll(_activitiesProcessing.Values), Task.Delay(TimeSpan.FromSeconds(_shutdownTimeoutSeconds)));
             }
 
             await base.StopAsync(stoppingToken);
@@ -105,7 +141,7 @@ namespace ImmediateAcceptBot.BackgroundQueue
             {
                 try
                 {
-                    await _adapter.ProcessActivityAsync(activityWithClaims.ClaimsIdentity, activityWithClaims.Activity, _botCreator().OnTurnAsync, stoppingToken);
+                    await _adapter.ProcessActivityAsync(activityWithClaims.ClaimsIdentity, activityWithClaims.Activity, _bot.OnTurnAsync, stoppingToken);
                 }
                 catch (Exception ex)
                 {

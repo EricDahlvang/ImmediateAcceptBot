@@ -4,13 +4,11 @@
 // Generated with Bot Builder V4 SDK Template for Visual Studio EchoBot v4.9.2
 
 using System;
-using System.Runtime.CompilerServices;
 using ImmediateAcceptBot.BackgroundQueue;
 using ImmediateAcceptBot.Bots;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Bot.Builder;
-using Microsoft.Bot.Builder.Integration.AspNet.Core;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -31,23 +29,24 @@ namespace ImmediateAcceptBot
         {
             services.AddControllers().AddNewtonsoftJson();
 
-            // services.AddHostedService<QueuedHostedService>();
+            // Activity specific BackgroundService for processing athenticated activities.
             services.AddHostedService<HostedActivityService>();
-
-            // Configure the shutdown to 60s
-            services.Configure<HostOptions>(opts => opts.ShutdownTimeout = TimeSpan.FromSeconds(Configuration.GetValue<int>("ShutdownTimeoutSeconds")));
-
+            // Generic BackgroundService for processing tasks.
+            services.AddHostedService<HostedTaskService>();
+            
+            // BackgroundTaskQueue and ActivityTaskQueue are the entry points for
+            // the enqueueing activities or tasks to be processed by the BackgroundService.
             services.AddSingleton<IBackgroundTaskQueue, BackgroundTaskQueue>();
             services.AddSingleton<IActivityTaskQueue, ActivityTaskQueue>();
+
+            // Configure the ShutdownTimeout based on appsettings.
+            services.Configure<HostOptions>(opts => opts.ShutdownTimeout = TimeSpan.FromSeconds(Configuration.GetValue<int>("ShutdownTimeoutSeconds")));
 
             // Create the Bot Framework Adapter with error handling enabled.
             services.AddSingleton<ImmediateAcceptAdapter>();
 
-            // Singleton function used bo create IBot within ActivityBackgroundService.
-            services.AddSingleton<Func<IBot>>(()=>new EchoBot());
-
-            // Create the bot as a transient. In this case the ASP Controller is expecting an IBot.
-            services.AddTransient<IBot, EchoBot>();
+            // Create the bot. In this case the ASP Controller and ImmediateAcceptAdapter is expecting an IBot.
+            services.AddSingleton<IBot, EchoBot>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.

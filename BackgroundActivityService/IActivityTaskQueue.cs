@@ -16,7 +16,8 @@ namespace ImmediateAcceptBot.BackgroundQueue
         /// <summary>
         /// Enqueue an Activity, with Claims, to be processed on a background thread.
         /// 
-        /// NOTE: It is assumed these claims have been authenticated before enqueueing.
+        /// NOTE: It is assumed these claims have been authenticated via JwtTokenValidation.AuthenticateRequest 
+        /// before enqueueing.
         /// </summary>
         /// <param name="claimsIdentity">Authenticated <see cref="ClaimsIdentity"/> used to process the 
         /// activity.</param>

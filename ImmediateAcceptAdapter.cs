@@ -45,7 +45,11 @@ namespace ImmediateAcceptBot
         }
 
         /// <summary>
-        /// This method can be called from inside a POST method on any Controller implementation.
+        /// This method can be called from inside a POST method on any Controller implementation.  If the activity is Not an Invoke, and
+        /// DeliveryMode is Not ExpectReplies, and this is not a Get request to upgrade to WebSockets, then the activity will be enqueued
+        /// to be processed on a background thread.
+        /// 
+        /// 
         /// 
         /// Note, this is an ImmediateAccept and BackgroundProcessing replacement for: 
         /// Task ProcessAsync(HttpRequest httpRequest, HttpResponse httpResponse, IBot bot, CancellationToken cancellationToken = default);

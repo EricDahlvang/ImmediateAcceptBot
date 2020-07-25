@@ -6,6 +6,7 @@ using System.Collections.Concurrent;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -20,27 +21,47 @@ namespace ImmediateAcceptBot.BackgroundQueue
     {
         private readonly ILogger<HostedTaskService> _logger;
         private readonly ReaderWriterLockSlim _lock = new ReaderWriterLockSlim();
-        
-        //private readonly ConcurrentBag<Task> _tasks = new ConcurrentBag<Task>();
-        
         private readonly ConcurrentDictionary<Func<CancellationToken,Task>, Task> _tasks = new ConcurrentDictionary<Func<CancellationToken, Task>, Task>();
         private readonly IBackgroundTaskQueue _taskQueue;
+        private readonly int _shutdownTimeoutSeconds;
 
-        public HostedTaskService(IBackgroundTaskQueue taskQueue, ILogger<HostedTaskService> logger)
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="config"></param>
+        /// <param name="taskQueue"></param>
+        /// <param name="logger"></param>
+        public HostedTaskService(IConfiguration config, IBackgroundTaskQueue taskQueue, ILogger<HostedTaskService> logger)
         {
+            if (config == null)
+            {
+                throw new ArgumentNullException(nameof(config));
+            }
+
+            if (taskQueue == null)
+            {
+                throw new ArgumentNullException(nameof(taskQueue));
+            }
+
+            _shutdownTimeoutSeconds = config.GetValue<int>("ShutdownTimeoutSeconds");
             _taskQueue = taskQueue;
             _logger = logger;
         }
 
+        /// <summary>
+        /// Called by BackgroundService when the hosting service is shutting down.
+        /// </summary>
+        /// <param name="stoppingToken"><see cref="CancellationToken"/> sent from BackgroundService for shutdown.</param>
+        /// <returns>The Task to be executed asynchronously.</returns>
         public override async Task StopAsync(CancellationToken stoppingToken)
         {
             _logger.LogInformation("Queued Hosted Service is stopping.");
 
             // Obtain a write lock and do not release it, preventing new tasks from starting
-            if (_lock.TryEnterWriteLock(TimeSpan.FromSeconds(60)))
+            if (_lock.TryEnterWriteLock(TimeSpan.FromSeconds(_shutdownTimeoutSeconds)))
             {
                 // Wait for currently running tasks, but only n seconds.
-                await Task.WhenAny(Task.WhenAll(_tasks.Values), Task.Delay(TimeSpan.FromSeconds(60)));
+                await Task.WhenAny(Task.WhenAll(_tasks.Values), Task.Delay(TimeSpan.FromSeconds(_shutdownTimeoutSeconds)));
             }
 
             await base.StopAsync(stoppingToken);
@@ -77,7 +98,6 @@ namespace ImmediateAcceptBot.BackgroundQueue
                                 });
 
                             _tasks.TryAdd(workItem, task);
-                            task.Start();
                         }
                         else
                         {

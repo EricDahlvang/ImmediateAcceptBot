@@ -12,8 +12,19 @@ namespace ImmediateAcceptBot.BackgroundQueue
     /// </summary>
     public interface IBackgroundTaskQueue
     {
+        /// <summary>
+        /// Enqueue a work item to be processed on a background thread.
+        /// </summary>
+        /// <param name="workItem">The work item to be enqueued for execution, is defined as
+        /// a function which takes a cancellation token.</param>
         void QueueBackgroundWorkItem(Func<CancellationToken, Task> workItem);
 
+        /// <summary>
+        /// Wait for a signal of an enqueued work item to be processed.
+        /// </summary>
+        /// <param name="cancellationToken">CancellationToken used to cancel the wait.</param>
+        /// <returns>A function taking a cacnellation token, which needs to be processed.
+        /// </returns>
         Task<Func<CancellationToken, Task>> DequeueAsync(CancellationToken cancellationToken);
     }
 }
