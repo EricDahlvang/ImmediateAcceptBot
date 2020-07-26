@@ -42,8 +42,9 @@ namespace ImmediateAcceptBot.Bots
         protected override async Task OnMessageActivityAsync(ITurnContext<IMessageActivity> turnContext, CancellationToken cancellationToken)
         {
             var text = turnContext.Activity.Text?.ToLower()?.Trim();
-            bool pause = !string.IsNullOrWhiteSpace(text) && text.Contains("pause");
-            bool background = !string.IsNullOrWhiteSpace(text) && text.Contains("background");
+            var hasText = !string.IsNullOrEmpty(text);
+            bool pause = hasText && text.Contains("pause");
+            bool background = hasText && text.Contains("background");
 
             if(background && pause)
             {
@@ -54,13 +55,13 @@ namespace ImmediateAcceptBot.Bots
             {
                 await HandlePauseOrBackground(turnContext, text, cancellationToken);
             }
-            else if (string.IsNullOrWhiteSpace(text) ||  text.ToLower() == "help")
+            else if (!hasText || text.Contains("help"))
             {
                 await SendHelp(turnContext, cancellationToken);
             }
             else
             {
-                var replyText = $"Echo: {text}";
+                var replyText = $"Echo: {text} (send 'help' if you are not sure what to do)";
                 await turnContext.SendActivityAsync(MessageFactory.Text(replyText, replyText), cancellationToken);
             }
         }

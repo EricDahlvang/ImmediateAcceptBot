@@ -120,4 +120,11 @@ public void ConfigureServices(IServiceCollection services)
 }
 ```
 
+## Interacting with the Bot
+
+send: 4 seconds   ...  and the bot will pause for 4 seconds while processing your message.
+send: 4 background   ...  and the bot will push your message to an additional background thread to process for 4 seconds.
+
+## Additional Resources
+
 QueuedHostedService is from https://github.com/dotnet/AspNetCore.Docs/tree/master/aspnetcore/fundamentals/host/hosted-services/samples/3.x/BackgroundTasksSample
