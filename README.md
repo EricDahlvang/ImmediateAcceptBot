@@ -1,4 +1,7 @@
-﻿# Immediate Accept Bot
+# NOTE: an updated version of this can be found here:
+https://github.com/microsoft/BotBuilder-Samples/tree/main/experimental/immediate-accept-adapter/csharp_dotnetcore
+
+# Immediate Accept Bot
 
 Built starting from Bot Framework v4 echo bot sample.
 
